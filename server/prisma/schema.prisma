@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ResourceStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+enum BookingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  passwordHash  String
+  phone         String?
+  role          Role           @default(USER)
+  bookings      Booking[]
+  notifications Notification[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  ownedResources Resource[]
+}
+
+model Resource {
+  id           String         @id @default(cuid())
+  name         String
+  type         String
+  description  String
+  location     String
+  capacity     Int
+  pricePerHour Decimal        @db.Decimal(10, 2)
+  imageUrl     String
+  status       ResourceStatus @default(ACTIVE)
+  ownerId      String?
+  owner        User?          @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  bookings     Booking[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model Booking {
+  id           String        @id @default(cuid())
+  userId       String
+  resourceId   String
+  startAt      DateTime
+  endAt        DateTime
+  purpose      String
+  attendees    Int
+  status       BookingStatus @default(PENDING)
+  rejectionReason String?
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource     Resource      @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  payment      Payment?
+  notifications Notification[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([resourceId, startAt, endAt])
+  @@index([userId, createdAt])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  bookingId         String        @unique
+  amount            Decimal       @db.Decimal(10, 2)
+  status            PaymentStatus @default(UNPAID)
+  transactionRef    String?
+  paidAt            DateTime?
+  booking           Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  bookingId String?
+  message   String
+  isRead    Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+}
